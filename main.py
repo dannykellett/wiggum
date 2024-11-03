@@ -46,6 +46,17 @@ producer = Producer({'bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS})
 consumer.subscribe([KAFKA_TOPIC_CONSUME])
 
 
+def detect_language_with_langdetect(line):
+    from langdetect import detect_langs
+    try:
+        langs = detect_langs(line)
+        for item in langs:
+            # The first one returned is usually the one that has the highest probability
+            return item.lang, item.prob
+    except:
+        return "err", 0.0
+
+
 def extract_data(soup: BeautifulSoup, artefactid: UUID, articleelement: Dict[str, List[str]], url: str) -> str:
     for key, value_list in articleelement.items():
         for value in value_list:
@@ -87,11 +98,12 @@ def process_message(message_key, message_value):
         # Parse HTML and extract text using BeautifulSoup
         soup = BeautifulSoup(response.text, 'html.parser')
         text_content = extract_data(soup, artefactid, articleelement, locator)
+        lang = detect_language_with_langdetect(text_content)[0]
 
         # Update database with extracted content
         with engine.connect() as connection:
-            update_query = text("UPDATE collected_artefacts SET rawcontent = :rawcontent WHERE artefactid = :artefactid")
-            result = connection.execute(update_query, {"rawcontent": text_content, "artefactid": artefactid})
+            update_query = text("UPDATE collected_artefacts SET rawcontent = :rawcontent, rawcontentlang = :rawcontentlang WHERE artefactid = :artefactid")
+            result = connection.execute(update_query, {"rawcontent": text_content, "rawcontentlang": lang, "artefactid": artefactid})
             connection.commit()  # Ensures the transaction is committed
 
             # Log number of rows affected to verify the update
@@ -101,7 +113,7 @@ def process_message(message_key, message_value):
                 logger.warning(f"No rows updated for artefact ID {artefactid}. Check if artefact ID exists.")
 
         # Publish updated message to Kafka
-        updated_message = {**message_value, "rawcontent": text_content}
+        updated_message = {**message_value, "rawcontent": text_content, "rawcontentlang": lang}
         producer.produce(KAFKA_TOPIC_PRODUCE, key=f"{artefactid}-scraped", value=json.dumps(updated_message))
         producer.flush()
 
