@@ -3,6 +3,7 @@ import json
 import logging
 from uuid import UUID
 from dotenv import load_dotenv
+from langdetect import detect_langs
 from loguru import logger
 from confluent_kafka import Consumer, Producer
 from sqlalchemy import create_engine, text
@@ -47,7 +48,6 @@ consumer.subscribe([KAFKA_TOPIC_CONSUME])
 
 
 def detect_language_with_langdetect(line):
-    from langdetect import detect_langs
     try:
         langs = detect_langs(line)
         for item in langs:
