@@ -62,7 +62,7 @@ def extract_data(soup: BeautifulSoup, artefactid: UUID, articleelement: Dict[str
         for value in value_list:
             tag = soup.find(key, class_=value)
             if tag:
-                return tag.get_text(strip=True)
+                return tag.get_text(strip=False)
     raise ValueError(f"Text not found for artefact ID {artefactid} in the specified elements.")
 
 
